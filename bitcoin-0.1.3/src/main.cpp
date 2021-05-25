@@ -403,6 +403,7 @@ void CWalletTx::AddSupportingTransactions(CTxDB& txdb)
 
 
 
+// Performs validation on transactions before accepting transaction.
 bool CTransaction::AcceptTransaction(CTxDB& txdb, bool fCheckInputs, bool* pfMissingInputs)
 {
     if (pfMissingInputs)
@@ -682,11 +683,12 @@ int64 CBlock::GetBlockValue(int64 nFees) const
     return nSubsidy + nFees;
 }
 
+// Difficulty adjustment
 unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
 {
     const unsigned int nTargetTimespan = 14 * 24 * 60 * 60; // two weeks
-    const unsigned int nTargetSpacing = 10 * 60;
-    const unsigned int nInterval = nTargetTimespan / nTargetSpacing;
+    const unsigned int nTargetSpacing = 10 * 60;  // 10 minutes
+    const unsigned int nInterval = nTargetTimespan / nTargetSpacing;  // 2016 blocks
 
     // Genesis block
     if (pindexLast == NULL)
@@ -703,6 +705,7 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
     assert(pindexFirst);
 
     // Limit adjustment step
+    // Recalibrate timespan bounds to be [nTargetTimespan / 4, nTargetTimespan * 4]
     unsigned int nActualTimespan = pindexLast->nTime - pindexFirst->nTime;
     printf("  nActualTimespan = %d  before bounds\n", nActualTimespan);
     if (nActualTimespan < nTargetTimespan/4)
@@ -711,11 +714,16 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast)
         nActualTimespan = nTargetTimespan*4;
 
     // Retarget
+    // New difficulty is set based on the ratio of actualTimespan : targetTimespan
+    // Find the time it took to generate 2106 blocks and if it took less than 2 weeks
+    // then reduce bits (increase difficulty) proportionately. 
     CBigNum bnNew;
     bnNew.SetCompact(pindexLast->nBits);
     bnNew *= nActualTimespan;
     bnNew /= nTargetTimespan;
 
+    // Bits is upper bound, ie. there is a lower limit for difficulty.
+    // It can't get easier than this.
     if (bnNew > bnProofOfWorkLimit)
         bnNew = bnProofOfWorkLimit;
 
@@ -1465,7 +1473,9 @@ bool LoadBlockIndex(bool fAllowNew)
         block.hashPrevBlock = 0;
         block.hashMerkleRoot = block.BuildMerkleTree();
         block.nVersion = 1;
+        // Sat Jan 03 2009 11:15:05 GMT-0700
         block.nTime    = 1231006505;
+        // 486604799
         block.nBits    = 0x1d00ffff;
         block.nNonce   = 2083236893;
 
@@ -1701,7 +1711,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     }
 
 
-
+    // Sets the version of the serializer being used for messaging.
     if (strCommand == "version")
     {
         // Can only do this once
@@ -1768,7 +1778,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
     }
 
-
+    
     else if (strCommand == "inv")
     {
         vector<CInv> vInv;
@@ -1792,6 +1802,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     }
 
 
+    // Returns an inventory (Block, Product, Error, Tx, Table) based on {type, hash}
     else if (strCommand == "getdata")
     {
         vector<CInv> vInv;
@@ -1828,7 +1839,9 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
     }
 
-
+    // Sends blocks, starting from the block caller has that's in the main chain
+    // to the block stop caller specifies. Each block is added to the 
+    // InventoryToSend collection which is consumed from SendMessage fn.
     else if (strCommand == "getblocks")
     {
         CBlockLocator locator;
@@ -1864,7 +1877,7 @@ bool ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
     }
 
-
+    // Verifies transaction and updates wallet
     else if (strCommand == "tx")
     {
         vector<uint256> vWorkQueue;

@@ -19,6 +19,7 @@ class CScript;
 class CDataStream;
 class CAutoFile;
 
+// Default version of messages being passed 1.0.3 (perhaps?)
 static const int VERSION = 103;
 
 
@@ -703,6 +704,9 @@ protected:
     short exceptmask;
 public:
     int nType;
+    // Version of the messages being passed.
+    // Set based on message header.
+    // Defaults to VERSION
     int nVersion;
 
     typedef vector_type::allocator_type   allocator_type;

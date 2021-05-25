@@ -51,6 +51,9 @@ void CheckForShutdown(int n);
 // The message start string is designed to be unlikely to occur in normal data.
 // The characters are rarely used upper ascii, not valid as UTF-8, and produce
 // a large 4-byte int at any alignment.
+
+// Decimal: [249, 190, 180, 217]
+// Characters: [ù, ¾, ´, Ù]
 static const char pchMessageStart[4] = { 0xf9, 0xbe, 0xb4, 0xd9 };
 
 class CMessageHeader
@@ -107,11 +110,13 @@ public:
                     if (*p1 != 0)
                         return false;
             }
+            // Bounded at 126
             else if (*p1 < ' ' || *p1 > 0x7E)
                 return false;
         }
 
         // Message size
+        // 268,435,456
         if (nMessageSize > 0x10000000)
         {
             printf("CMessageHeader::IsValid() : nMessageSize too large %u\n", nMessageSize);
@@ -317,6 +322,7 @@ static const char* ppszTypeName[] =
     "table",
 };
 
+// Inventory Class
 class CInv
 {
 public:

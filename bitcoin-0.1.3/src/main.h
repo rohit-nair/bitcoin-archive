@@ -14,40 +14,68 @@ class CBlockIndex;
 class CWalletTx;
 class CKeyItem;
 
-static const unsigned int MAX_SIZE = 0x02000000;
-static const int64 COIN = 100000000;
-static const int64 CENT = 1000000;
-static const int COINBASE_MATURITY = 100;
 
+//
+// GLOBAL CONSTANTS
+//
+// Max block size
+static const unsigned int MAX_SIZE = 0x02000000;
+// aka Satoshi: 1/COIN, 1 BTC = 10^8 COIN, 100MM
+static const int64 COIN = 100000000;
+// 1 BTC = 10^6 CENT, 1MM
+static const int64 CENT = 1000000;
+// Number of blocks to wait before a coinbase coin is mature
+// enough to be spent.
+static const int COINBASE_MATURITY = 100;
+// Set 256 bits to 1 and left shift 32.
 static const CBigNum bnProofOfWorkLimit(~uint256(0) >> 32);
 
 
-
-
-
-
+//
+// GLOBAL STATE
+//
+//  Guards critical sections of the code that needs to be threadsafe
 extern CCriticalSection cs_main;
+// Maps the hash of a block to pointer to the block in the blockchain
 extern map<uint256, CBlockIndex*> mapBlockIndex;
+// Hash of the genesis block
+// 0x000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f
+// 10 zeroes
 extern const uint256 hashGenesisBlock;
+// Pointer to the genesis 
 extern CBlockIndex* pindexGenesisBlock;
+// Max height of the blockchain tree. The longest chain is the valid chain.
+// Used in deciding mining reward.
+// TODO: Figure out how *BestChain is updated when ours is not the canonical best chain 
 extern int nBestHeight;
+// Hash of the last block in the longest chain
 extern uint256 hashBestChain;
+// Pointer to the last block in the longest chain
 extern CBlockIndex* pindexBest;
+// Keeps track of number of transactions in the current block being mined
 extern unsigned int nTransactionsUpdated;
+// The path to data directory. Home in linux, APPDATA in windows
+// TODO: Confirm
 extern string strSetDataDir;
+// Flag to randomly drop messages
+// Not sure where this is being set to ≠ 0.
 extern int nDropMessagesTest;
 
-// Settings
+//
+// GLOBAL SETTINGS
+// Settings are persisted in DB and re-read when the app is initialized
+//
+// Flag to signal whether to continue mining
 extern int fGenerateBitcoins;
+// Tracks the fee associated with each transaction
 extern int64 nTransactionFee;
+// External facing IP for this node/machine
 extern CAddress addrIncoming;
 
 
-
-
-
-
-
+//
+// Functions
+//
 string GetAppDir();
 FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
 FILE* AppendBlockFile(unsigned int& nFileRet);
@@ -148,6 +176,7 @@ class COutPoint
 {
 public:
     uint256 hash;
+    // Index in the tranasaction collection (?) (Transaction contains multiple inputs and outputs)
     unsigned int n;
 
     COutPoint() { SetNull(); }
@@ -434,6 +463,8 @@ public:
         return fNewer;
     }
 
+    // Coinbase transactions contain rewards from mining. They have no lineage.
+    // Hence no previous transactions.
     bool IsCoinBase() const
     {
         return (vin.size() == 1 && vin[0].prevout.IsNull());
@@ -442,6 +473,7 @@ public:
     bool CheckTransaction() const
     {
         // Basic checks that don't depend on any context
+        // Transactions should have an input or an output.
         if (vin.empty() || vout.empty())
             return error("CTransaction::CheckTransaction() : vin or vout empty");
 
@@ -465,6 +497,7 @@ public:
         return true;
     }
 
+    // Mine if all TxOut are mine
     bool IsMine() const
     {
         foreach(const CTxOut& txout, vout)
@@ -504,8 +537,10 @@ public:
     int64 GetMinFee(bool fDiscount=false) const
     {
         unsigned int nBytes = ::GetSerializeSize(*this, SER_NETWORK);
+        // No fee for transaction size below 10k
         if (fDiscount && nBytes < 10000)
             return 0;
+        // Fee is BTC0.01 per kB
         return (1 + (int64)nBytes / 1000) * CENT;
     }
 
@@ -810,6 +845,8 @@ public:
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
     unsigned int nTime;
+    // Represents target value the hash of block should be less than
+    // Is inversely related to difficulty.
     unsigned int nBits;
     unsigned int nNonce;
 
@@ -1306,12 +1343,24 @@ public:
 
 
 
-
+//
+// GLOBAL STATE (contd...)
+//
+// Maps a transaction hash to transaction instance for all transactions in memory pool
 extern map<uint256, CTransaction> mapTransactions;
+// Maps a wallet hash to a pointer to a wallet instance
 extern map<uint256, CWalletTx> mapWallet;
+// A dynamic array of tuples of wallet hash to boolean
+// Used to flag whether a wallet has been updated while rendering UI
 extern vector<pair<uint256, bool> > vWalletUpdated;
+//  Guards critical sections of the code that needs to be threadsafe
+// while updating walletsd. 
 extern CCriticalSection cs_mapWallet;
+// Maps public key to private key
 extern map<vector<unsigned char>, CPrivKey> mapKeys;
+// Maps address hash160 to public key
 extern map<uint160, vector<unsigned char> > mapPubKeys;
+// Guards critical section of code where mapKeys and other variables are updated. 
 extern CCriticalSection cs_mapKeys;
+// Variable to hold user's pub/private keys.
 extern CKey keyUser;
